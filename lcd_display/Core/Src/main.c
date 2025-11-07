@@ -18,10 +18,9 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-// #include "lcd_io_spi_dma2d_hal.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+// include the app to run before main
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -94,8 +93,6 @@ int main(void)
   MX_DMA_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-  //  set dc to high to do write
-//   ili9488_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
