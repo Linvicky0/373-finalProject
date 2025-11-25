@@ -18,10 +18,10 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "grideye.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "vl53l7cx_api.h"
 #include <stdio.h>
 /* USER CODE END Includes */
 
@@ -46,9 +46,9 @@ I2C_HandleTypeDef hi2c1;
 UART_HandleTypeDef hlpuart1;
 
 /* USER CODE BEGIN PV */
-VL53L7CX_Configuration Dev;
-VL53L7CX_ResultsData Results;
-uint8_t isAlive, status, isReady, i;
+
+float pixel_temps[64];
+float thermistor_temp;
 
 /* USER CODE END PV */
 
@@ -76,7 +76,6 @@ PUTCHAR_PROTOTYPE
 	    return ch;
 }
 
-#define MAX_VALID_DIST_MM 10000U  /* sanity threshold for picking correct endian */
 
 /* USER CODE END 0 */
 
@@ -114,40 +113,17 @@ int main(void)
   MX_LPUART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
+
   /* USER CODE BEGIN 2 */
 
-  // Setup platform
-  Dev.platform.address = 0x52;
-
-
-  // Reset sensor
-  HAL_GPIO_WritePin(LPn_C_GPIO_Port, LPn_C_Pin, GPIO_PIN_RESET);
-  HAL_Delay(10);
-  HAL_GPIO_WritePin(LPn_C_GPIO_Port, LPn_C_Pin, GPIO_PIN_SET);
+  printf("Initializing Grid-Eye...\r\n");
+  GridEye_Init(&hi2c1);
   HAL_Delay(100);
 
-  printf("Starting...\r\n");
-
-  // Check if sensor is alive
-
-  vl53l7cx_is_alive(&Dev, &isAlive);
-  printf("isAlive = %d\r\n", isAlive);
-
-  if (isAlive) {
-	  printf("Initializing...\r\n");  //
-      vl53l7cx_init(&Dev);  // This takes a few seconds
-      // Set resolution to 8x8 (64 zones)
-      vl53l7cx_set_resolution(&Dev, VL53L7CX_RESOLUTION_8X8);
-
-      // OPTIONAL — set framerate (Hz)
-      vl53l7cx_set_ranging_frequency_hz(&Dev, 15);
-
-      vl53l7cx_start_ranging(&Dev);
-      printf("Ready!\r\n");
-  }
-
-
-
+  // Test thermistor
+  thermistor_temp = GridEye_ReadThermistor(&hi2c1);
+  printf("Thermistor temp: %.2f C\r\n", thermistor_temp);
+  printf("Grid-Eye ready!\r\n");
 
   /* USER CODE END 2 */
 
@@ -155,42 +131,16 @@ int main(void)
 
   while(1)
   {
-      uint8_t isReady = 0;  // Declare fresh each loop!
-      uint8_t status = vl53l7cx_check_data_ready(&Dev, &isReady);
+      // Read all 64 pixels
+      GridEye_ReadPixels(&hi2c1, pixel_temps);
 
-      // Debug output
-      if(status != 0) {
-          printf("ERROR: check_data_ready failed, status = %d\r\n", status);
+      printf("=== Grid-Eye Frame ===\r\n");
+      for(int i = 0; i < 64; i++) {
+          printf("Pixel %2d: %.2f C\r\n", i, pixel_temps[i]);
       }
+      printf("\r\n");
 
-      printf("isReady = %d\r\n", isReady);  // Should toggle 0,0,0,1,0,0,0,1...
-
-      if(isReady)
-      {
-          printf("Getting data...\r\n");
-          status = vl53l7cx_get_ranging_data(&Dev, &Results);
-
-          if(status != 0) {
-              printf("ERROR: get_ranging_data failed, status = %d\r\n", status);
-
-
-                   // Try to recover I2C
-                   HAL_I2C_DeInit(&hi2c1);
-                   HAL_Delay(10);
-                   MX_I2C1_Init();
-                   HAL_Delay(100);
-                   continue;
-               }
-
-
-          printf("=== Frame %3u ===\r\n", Dev.streamcount);
-          for(int i = 0; i < 64; i++){
-              printf("Zone %2d: %4d mm\r\n", i, Results.distance_mm[i]);
-          }
-          printf("\r\n");
-      }
-
-      HAL_Delay(100);  // Try longer delay for debugging
+      HAL_Delay(1000);  // Read once per second
   }
 
 
