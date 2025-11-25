@@ -163,7 +163,7 @@ int main(void)
           printf("ERROR: check_data_ready failed, status = %d\r\n", status);
       }
 
-      printf("isReady = %d\r\n", isReady);  // Should toggle 0,0,0,1,0,0,0,1...
+   //   printf("isReady = %d\r\n", isReady);  // Should toggle 0,0,0,1,0,0,0,1...
 
       if(isReady)
       {
@@ -171,7 +171,7 @@ int main(void)
           status = vl53l7cx_get_ranging_data(&Dev, &Results);
 
           if(status != 0) {
-              printf("ERROR: get_ranging_data failed, status = %d\r\n", status);
+             printf("ERROR: get_ranging_data failed, status = %d\r\n", status);
 
 
                    // Try to recover I2C
