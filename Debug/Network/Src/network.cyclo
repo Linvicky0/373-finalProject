@@ -1,0 +1,13 @@
+../Network/Src/network.c:375:9:network_configure_activations	2
+../Network/Src/network.c:410:9:network_configure_weights	2
+../Network/Src/network.c:449:9:ai_network_get_info	4
+../Network/Src/network.c:496:9:ai_network_get_report	4
+../Network/Src/network.c:543:10:ai_network_get_error	1
+../Network/Src/network.c:550:10:ai_network_create	1
+../Network/Src/network.c:561:10:ai_network_create_and_init	8
+../Network/Src/network.c:596:12:ai_network_inputs_get	2
+../Network/Src/network.c:607:12:ai_network_outputs_get	2
+../Network/Src/network.c:618:11:ai_network_destroy	1
+../Network/Src/network.c:625:9:ai_network_init	2
+../Network/Src/network.c:642:8:ai_network_run	1
+../Network/Src/network.c:650:8:ai_network_forward	1
