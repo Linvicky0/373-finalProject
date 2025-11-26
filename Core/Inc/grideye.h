@@ -10,7 +10,7 @@
 
 #include "stm32l4xx_hal.h"
 
-#define GRIDEYE_ADDR (0x68 << 1)  // 0xD0
+#define GRIDEYE_ADDR (0x69 << 1)  // 0xD0
 
 // Register addresses
 #define POWER_CONTROL_REG    0x00
