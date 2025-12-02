@@ -1,6 +1,0 @@
-../Core/Src/Lcd/stm32_ili9488_ts.c:15:6:BSP_TS_CalibCalc	17
-../Core/Src/Lcd/stm32_ili9488_ts.c:96:6:BSP_TS_DisplaycoordCalc	5
-../Core/Src/Lcd/stm32_ili9488_ts.c:120:6:BSP_TS_SetCindex	2
-../Core/Src/Lcd/stm32_ili9488_ts.c:130:6:BSP_TS_GetCindex	2
-../Core/Src/Lcd/stm32_ili9488_ts.c:144:9:BSP_TS_Init	3
-../Core/Src/Lcd/stm32_ili9488_ts.c:169:6:BSP_TS_GetState	2
