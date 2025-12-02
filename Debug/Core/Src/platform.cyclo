@@ -1,0 +1,7 @@
+../Core/Src/platform.c:68:9:VL53L7CX_RdByte	1
+../Core/Src/platform.c:86:9:VL53L7CX_WrByte	1
+../Core/Src/platform.c:102:9:VL53L7CX_WrMulti	1
+../Core/Src/platform.c:113:9:VL53L7CX_RdMulti	1
+../Core/Src/platform.c:129:9:VL53L7CX_Reset_Sensor	1
+../Core/Src/platform.c:146:6:VL53L7CX_SwapBuffer	2
+../Core/Src/platform.c:165:9:VL53L7CX_WaitMs	1
