@@ -25,10 +25,11 @@
 #include <stdio.h>
 #include "bitmap.h"
 /* BSP LCD driver */
-#include "Lcd/stm32_ili9488_lcd.h"
+#include "Lcd/stm32_lcd.h"
 
 /* BSP TS driver */
-#include "Lcd/stm32_ili9488_ts.h"
+#include "Lcd/stm32_ts.h"
+#include "Lcd/lcdts_io_xpt2046_spi_hal.h"
 #include "game.h"
 /* USER CODE END Includes */
 
@@ -44,19 +45,24 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+#define TS_CALBIBRATE         0
 
+/* If TS_CALBIBRATE == 3 -> Text line size */
+#define TS_CALIBTEXTSIZE      12
+
+#define Delay(t)              HAL_Delay(t)
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+UART_HandleTypeDef hlpuart1;
+
 SPI_HandleTypeDef hspi1;
 DMA_HandleTypeDef hdma_spi1_rx;
 DMA_HandleTypeDef hdma_spi1_tx;
 
-TIM_HandleTypeDef htim1;
-TIM_HandleTypeDef htim4;
-
 /* USER CODE BEGIN PV */
-extern LCD_DrvTypeDef *lcd_drv;
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -64,15 +70,16 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_SPI1_Init(void);
-static void MX_TIM1_Init(void);
-static void MX_TIM4_Init(void);
+static void MX_LPUART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
+//extern LCD_DrvTypeDef *lcd_drv;
+//extern TS_DrvTypeDef *ts_drv;
 void mainApp(void);
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
 
 struct GameInfo prevMatch = {NOGAME, NOCHOICE, NOCHOICE};
 uint16_t xboxsize;
@@ -137,7 +144,7 @@ void displayLCD(struct GameInfo curMatch)
   }
   if (prevMatch.robotChoice != curMatch.robotChoice) {
 	  prevMatch.robotChoice = curMatch.robotChoice;
-	  BSP_LCD_DrawRGB16Image(BSP_LCD_GetXSize()-100, BSP_LCD_GetYSize()/2, 100, 100, (uint16_t*)robotBitmap);
+	  BSP_LCD_DrawRGB16Image(BSP_LCD_GetXSize()-100, lcd_height/2, 100, 100, (uint16_t*)robotBitmap);
   }
 }
 
@@ -162,23 +169,25 @@ uint16_t XPT2046_ReadValue(uint8_t cmd) // command used to read x, y, or z value
 
 
 void HAL_GPIO_EXTI_Callback(uint16_t pin) {
+
 	if (pin == TS_IRQ_Pin) {
 		// disable interrupt be setting it high because reading would cause handler to trigger again
 		 HAL_NVIC_DisableIRQ(EXTI0_IRQn); // NOTE: change this if we changed exti number for touch detection
 		 while (HAL_GPIO_ReadPin(TS_IRQ_GPIO_Port, TS_IRQ_Pin) == GPIO_PIN_RESET);
-
 		// get x, y points
 		 uint16_t x_raw, y_raw;
 
 		  x_raw = XPT2046_ReadValue(0xD1);  // X command (D1?)  1(___)00(00)
 		  y_raw = XPT2046_ReadValue(0x91);  // Y command (91?)
 		  uint16_t curTextcolor = BSP_LCD_GetTextColor();
-		  if (curTextcolor == LCD_COLOR_MAGENTA) {
-			  BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
-		  }
-		  else {
-			  BSP_LCD_SetTextColor(LCD_COLOR_MAGENTA);
-		  }
+//		  if (curTextcolor == LCD_COLOR_MAGENTA) {
+//			  BSP_LCD_SetTextColor(LCD_COLOR_WHITE); // white is 0xffff (65535)
+//		  }
+//		  else {
+			  BSP_LCD_SetTextColor(LCD_COLOR_MAGENTA); // magenta is 0xf81f (63519)
+//		  }
+		 printf("IRQ pulled low: read value (x: %d, y: %d). Current color: %d\r\n", y_raw, x_raw, curTextcolor);
+
          displayText();
          __HAL_GPIO_EXTI_CLEAR_IT(TS_IRQ_Pin);
          HAL_NVIC_ClearPendingIRQ(EXTI0_IRQn);
@@ -188,58 +197,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t pin) {
 	}
 }
 
-
-void move_hand(Gesture robotMove)
-{
-	//  CCR 50 = 0 degrees, CCR 150 = 90 degrees, CCR 250 = 180 degrees
-  if (prevMatch.robotChoice != robotMove) {
-	  if (robotMove == ROCK) { // thumb ccr to 250, other timers' CCR set to 50
-			  while (htim4.Instance->CCR2 > 50 || htim4.Instance->CCR4 > 50 || htim1.Instance->CCR4 < 250) {
-			  		if (htim4.Instance->CCR2 > 50) {
-			  		 __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, htim4.Instance->CCR2-1);
-			  		}
-			  		if (htim4.Instance->CCR4 > 50) {
-			  		 __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, htim4.Instance->CCR4-1);
-			  		}
-			  		if (htim1.Instance->CCR4 < 250) {
-				  	 __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, htim1.Instance->CCR4+1);
-			  		}
-			  		HAL_Delay(20);
-			  }
-		  }
-		  else if (robotMove == PAPER) { // thumb ccr to 50, other timers' CCR set to 250
-			  while (htim4.Instance->CCR2 < 250 || htim4.Instance->CCR4 < 250 || htim1.Instance->CCR4 > 50) {
-				  if (htim4.Instance->CCR2 < 250) {
-					  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, htim4.Instance->CCR2+1);
-				  }
-				  if (htim4.Instance->CCR4 < 250) {
-					  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, htim4.Instance->CCR4+1);
-				  }
-				  if (htim1.Instance->CCR4 > 50) {
-					 __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, htim1.Instance->CCR4-1);
-				  }
-				  HAL_Delay(20);
-			  }
-	  }
-	  else if (robotMove == SCISSORS) {
-		  // thumb ccr => 250
-		  // tim4ch2 represents index and middle fingers -> set CCR to 50
-		  // tim4ch4 CCR set to 250
-		  while (htim4.Instance->CCR2 < 250 || htim4.Instance->CCR4 > 50 || htim1.Instance->CCR4 < 250) {
-		  		if (htim4.Instance->CCR2 < 250) {
-		  			__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, htim4.Instance->CCR2+1);
-		  		}
-		  		if (htim4.Instance->CCR4 > 50) {
-		  			__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, htim4.Instance->CCR4-1);
-		  		}
-		  	    if (htim1.Instance->CCR4 < 250) {
-		  			__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, htim1.Instance->CCR4+1);
-		  		}
-		  		HAL_Delay(20);
-		  	}
-	  }
-  }
-}
 
 /* USER CODE END 0 */
 
@@ -251,7 +208,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -274,26 +230,34 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_SPI1_Init();
-  MX_TIM1_Init();
-  MX_TIM4_Init();
+  MX_LPUART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  // Start timers for hand: start off with paper
-   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);  // index and middle fingers: CCR=250 is stretched, CCR=50 is curled
-   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
-   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4); // thumb finger: CCR=50 is stretched, CCR=250 is curled
+//    TS_StateTypeDef ts;
+//    ts_calib();
 
   uint16_t lcd_width = BSP_LCD_GetXSize();
   uint16_t lcd_height = BSP_LCD_GetYSize();
   BSP_LCD_Init();
-  //BSP_TS_Init(lcd_width, lcd_height);
+  BSP_TS_Init(lcd_width, lcd_height);
 
   xboxsize = lcd_width / 6; // box size is 320/6 => 53
 
+//  BSP_LCD_SetTextColor(LCD_COLOR_RED);
+//  BSP_LCD_FillRect(0, 0, xboxsize, xboxsize); /// fillrect, drawrect and lcdclear pulls the irq down
+//  BSP_LCD_SetTextColor(LCD_COLOR_YELLOW);
+//  BSP_LCD_FillRect(xboxsize, 0, xboxsize, xboxsize);
+//  BSP_LCD_SetTextColor(LCD_COLOR_GREEN);
+//  BSP_LCD_FillRect(xboxsize * 2, 0, xboxsize, xboxsize);
+//  BSP_LCD_SetTextColor(LCD_COLOR_CYAN);
+//  BSP_LCD_FillRect(xboxsize * 3, 0, xboxsize, xboxsize);
+//  BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
+//  BSP_LCD_FillRect(xboxsize * 4, 0, xboxsize, xboxsize);
+//  BSP_LCD_SetTextColor(LCD_COLOR_MAGENTA);
+//  BSP_LCD_FillRect(xboxsize * 5, 0, xboxsize, xboxsize);
 
   BSP_LCD_SetTextColor(LCD_COLOR_WHITE); // set initial text color to white
-
-  BSP_LCD_SetTextColor(LCD_COLOR_WHITE); // set initial text color to white
+//  BSP_LCD_DrawRect(0, 0, xboxsize, xboxsize);
   BSP_LCD_DisplayChar(15, lcd_height/2 - 20, 'Y');
   BSP_LCD_DisplayChar(30, lcd_height/2 - 20, 'O');
   BSP_LCD_DisplayChar(45, lcd_height/2 - 20, 'U');
@@ -303,29 +267,15 @@ int main(void)
   BSP_LCD_DisplayChar(lcd_width-60, lcd_height/2 - 20, 'B');
   BSP_LCD_DisplayChar(lcd_width-45, lcd_height/2 - 20, 'O');
   BSP_LCD_DisplayChar(lcd_width-30, lcd_height/2 - 20, 'T');
+  printf("starting...\r\n");
 
-  // set hand pos to half curled
-//  while (htim4.Instance->CCR2 < 150 || htim4.Instance->CCR4 < 150 || htim1.Instance->CCR4 < 150) {
-//			  if (htim4.Instance->CCR2 < 150) {
-//				  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, htim4.Instance->CCR2+1);
-//			  }
-//			  if (htim4.Instance->CCR4 < 150) {
-//				  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, htim4.Instance->CCR4+1);
-//			  }
-//			  if (htim1.Instance->CCR4 < 150) {
-//				 __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, htim1.Instance->CCR4+1);
-//			  }
-//			  HAL_Delay(20);
-//  }
-
-  HAL_Delay(5000);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
   while (1)
   {
-
 	 srand(HAL_GetTick());
 
     int userPick = rand() % 3;
@@ -334,7 +284,7 @@ int main(void)
     Gesture robotGesture = (Gesture)robotPick;
     GameResult res = getGameResult(userGesture, robotGesture);
     struct GameInfo matchInfo = {res, userGesture, robotGesture};
-    move_hand(robotGesture);
+
     displayLCD(matchInfo);
     HAL_Delay(2000); // wait 2 seconds before starting another match
     /* USER CODE END WHILE */
@@ -389,6 +339,54 @@ void SystemClock_Config(void)
 }
 
 /**
+  * @brief LPUART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_LPUART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN LPUART1_Init 0 */
+
+  /* USER CODE END LPUART1_Init 0 */
+
+  /* USER CODE BEGIN LPUART1_Init 1 */
+
+  /* USER CODE END LPUART1_Init 1 */
+  hlpuart1.Instance = LPUART1;
+  hlpuart1.Init.BaudRate = 115200;
+  hlpuart1.Init.WordLength = UART_WORDLENGTH_8B;
+  hlpuart1.Init.StopBits = UART_STOPBITS_1;
+  hlpuart1.Init.Parity = UART_PARITY_NONE;
+  hlpuart1.Init.Mode = UART_MODE_TX_RX;
+  hlpuart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  hlpuart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  hlpuart1.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  hlpuart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  hlpuart1.FifoMode = UART_FIFOMODE_DISABLE;
+  if (HAL_UART_Init(&hlpuart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&hlpuart1, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&hlpuart1, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&hlpuart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN LPUART1_Init 2 */
+
+  /* USER CODE END LPUART1_Init 2 */
+
+}
+
+/**
   * @brief SPI1 Initialization Function
   * @param None
   * @retval None
@@ -425,129 +423,6 @@ static void MX_SPI1_Init(void)
   /* USER CODE BEGIN SPI1_Init 2 */
 
   /* USER CODE END SPI1_Init 2 */
-
-}
-
-/**
-  * @brief TIM1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM1_Init(void)
-{
-
-  /* USER CODE BEGIN TIM1_Init 0 */
-
-  /* USER CODE END TIM1_Init 0 */
-
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
-  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
-
-  /* USER CODE BEGIN TIM1_Init 1 */
-
-  /* USER CODE END TIM1_Init 1 */
-  htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 79;
-  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 999;
-  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim1.Init.RepetitionCounter = 0;
-  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 250;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
-  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
-  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
-  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
-  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
-  sBreakDeadTimeConfig.DeadTime = 0;
-  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
-  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
-  sBreakDeadTimeConfig.BreakFilter = 0;
-  sBreakDeadTimeConfig.Break2State = TIM_BREAK2_DISABLE;
-  sBreakDeadTimeConfig.Break2Polarity = TIM_BREAK2POLARITY_HIGH;
-  sBreakDeadTimeConfig.Break2Filter = 0;
-  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
-  if (HAL_TIMEx_ConfigBreakDeadTime(&htim1, &sBreakDeadTimeConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM1_Init 2 */
-
-  /* USER CODE END TIM1_Init 2 */
-  HAL_TIM_MspPostInit(&htim1);
-
-}
-
-/**
-  * @brief TIM4 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM4_Init(void)
-{
-
-  /* USER CODE BEGIN TIM4_Init 0 */
-
-  /* USER CODE END TIM4_Init 0 */
-
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
-
-  /* USER CODE BEGIN TIM4_Init 1 */
-
-  /* USER CODE END TIM4_Init 1 */
-  htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 79;
-  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 999;
-  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 50;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.Pulse = 0;
-  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM4_Init 2 */
-
-  /* USER CODE END TIM4_Init 2 */
-  HAL_TIM_MspPostInit(&htim4);
 
 }
 
@@ -604,7 +479,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LCD_RS_GPIO_Port, LCD_RS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LD3_Pin|LD2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LCD_CS_GPIO_Port, LCD_CS_Pin, GPIO_PIN_SET);
@@ -645,12 +520,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(LCD_RS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LD3_Pin */
-  GPIO_InitStruct.Pin = LD3_Pin;
+  /*Configure GPIO pins : LD3_Pin LD2_Pin */
+  GPIO_InitStruct.Pin = LD3_Pin|LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD3_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : STLK_RX_Pin STLK_TX_Pin */
   GPIO_InitStruct.Pin = STLK_RX_Pin|STLK_TX_Pin;
@@ -680,14 +555,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(USB_PowerSwitchOn_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : STLINK_TX_Pin STLINK_RX_Pin */
-  GPIO_InitStruct.Pin = STLINK_TX_Pin|STLINK_RX_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF8_LPUART1;
-  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
-
   /*Configure GPIO pins : USB_SOF_Pin USB_ID_Pin USB_DM_Pin USB_DP_Pin */
   GPIO_InitStruct.Pin = USB_SOF_Pin|USB_ID_Pin|USB_DM_Pin|USB_DP_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -712,6 +579,16 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+#ifdef __GNUC__
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#else
+  #define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+#endif /* __GNUC__ */
+PUTCHAR_PROTOTYPE
+{
+  HAL_UART_Transmit(&hlpuart1, (uint8_t *)&ch, 1, 0xFFFF);
+  return ch;
+}
 
 /* USER CODE END 4 */
 

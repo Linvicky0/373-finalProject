@@ -5,22 +5,25 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../Core/Src/Lcd/appPaint.c \
 ../Core/Src/Lcd/ili9488.c \
 ../Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.c \
-../Core/Src/Lcd/stm32_ili9488_lcd.c \
-../Core/Src/Lcd/stm32_ili9488_ts.c 
+../Core/Src/Lcd/stm32_lcd.c \
+../Core/Src/Lcd/stm32_ts.c 
 
 OBJS += \
+./Core/Src/Lcd/appPaint.o \
 ./Core/Src/Lcd/ili9488.o \
 ./Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.o \
-./Core/Src/Lcd/stm32_ili9488_lcd.o \
-./Core/Src/Lcd/stm32_ili9488_ts.o 
+./Core/Src/Lcd/stm32_lcd.o \
+./Core/Src/Lcd/stm32_ts.o 
 
 C_DEPS += \
+./Core/Src/Lcd/appPaint.d \
 ./Core/Src/Lcd/ili9488.d \
 ./Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.d \
-./Core/Src/Lcd/stm32_ili9488_lcd.d \
-./Core/Src/Lcd/stm32_ili9488_ts.d 
+./Core/Src/Lcd/stm32_lcd.d \
+./Core/Src/Lcd/stm32_ts.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes
@@ -30,7 +33,7 @@ Core/Src/Lcd/%.o Core/Src/Lcd/%.su Core/Src/Lcd/%.cyclo: ../Core/Src/Lcd/%.c Cor
 clean: clean-Core-2f-Src-2f-Lcd
 
 clean-Core-2f-Src-2f-Lcd:
-	-$(RM) ./Core/Src/Lcd/ili9488.cyclo ./Core/Src/Lcd/ili9488.d ./Core/Src/Lcd/ili9488.o ./Core/Src/Lcd/ili9488.su ./Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.cyclo ./Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.d ./Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.o ./Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.su ./Core/Src/Lcd/stm32_ili9488_lcd.cyclo ./Core/Src/Lcd/stm32_ili9488_lcd.d ./Core/Src/Lcd/stm32_ili9488_lcd.o ./Core/Src/Lcd/stm32_ili9488_lcd.su ./Core/Src/Lcd/stm32_ili9488_ts.cyclo ./Core/Src/Lcd/stm32_ili9488_ts.d ./Core/Src/Lcd/stm32_ili9488_ts.o ./Core/Src/Lcd/stm32_ili9488_ts.su
+	-$(RM) ./Core/Src/Lcd/appPaint.cyclo ./Core/Src/Lcd/appPaint.d ./Core/Src/Lcd/appPaint.o ./Core/Src/Lcd/appPaint.su ./Core/Src/Lcd/ili9488.cyclo ./Core/Src/Lcd/ili9488.d ./Core/Src/Lcd/ili9488.o ./Core/Src/Lcd/ili9488.su ./Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.cyclo ./Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.d ./Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.o ./Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.su ./Core/Src/Lcd/stm32_lcd.cyclo ./Core/Src/Lcd/stm32_lcd.d ./Core/Src/Lcd/stm32_lcd.o ./Core/Src/Lcd/stm32_lcd.su ./Core/Src/Lcd/stm32_ts.cyclo ./Core/Src/Lcd/stm32_ts.d ./Core/Src/Lcd/stm32_ts.o ./Core/Src/Lcd/stm32_ts.su
 
 .PHONY: clean-Core-2f-Src-2f-Lcd
 

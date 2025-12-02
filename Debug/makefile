@@ -36,34 +36,34 @@ $(wildcard ../makefile.init) \
 $(wildcard ../makefile.targets) \
 
 
-BUILD_ARTIFACT_NAME := lcd_hand
+BUILD_ARTIFACT_NAME := lcd_display1
 BUILD_ARTIFACT_EXTENSION := elf
 BUILD_ARTIFACT_PREFIX :=
 BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ARTIFACT_EXTENSION),.$(BUILD_ARTIFACT_EXTENSION),)
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXECUTABLES += \
-lcd_hand.elf \
+lcd_display1.elf \
 
 MAP_FILES += \
-lcd_hand.map \
+lcd_display1.map \
 
 SIZE_OUTPUT += \
 default.size.stdout \
 
 OBJDUMP_LIST += \
-lcd_hand.list \
+lcd_display1.list \
 
 
 # All Target
 all: main-build
 
 # Main-build Target
-main-build: lcd_hand.elf secondary-outputs
+main-build: lcd_display1.elf secondary-outputs
 
 # Tool invocations
-lcd_hand.elf lcd_hand.map: $(OBJS) $(USER_OBJS) N:\EECS373-CubeIDE-Workspace\lcd_hand\STM32L4R5ZITXP_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "lcd_hand.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"N:\EECS373-CubeIDE-Workspace\lcd_hand\STM32L4R5ZITXP_FLASH.ld" --specs=nosys.specs -Wl,-Map="lcd_hand.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+lcd_display1.elf lcd_display1.map: $(OBJS) $(USER_OBJS) N:\EECS373-CubeIDE-Workspace\lcd_display1\STM32L4R5ZITX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "lcd_display1.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"N:\EECS373-CubeIDE-Workspace\lcd_display1\STM32L4R5ZITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="lcd_display1.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -72,14 +72,14 @@ default.size.stdout: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	@echo 'Finished building: $@'
 	@echo ' '
 
-lcd_hand.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "lcd_hand.list"
+lcd_display1.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "lcd_display1.list"
 	@echo 'Finished building: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) default.size.stdout lcd_hand.elf lcd_hand.list lcd_hand.map
+	-$(RM) default.size.stdout lcd_display1.elf lcd_display1.list lcd_display1.map
 	-@echo ' '
 
 secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST)

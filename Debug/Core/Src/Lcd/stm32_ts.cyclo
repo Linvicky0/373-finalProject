@@ -1,0 +1,6 @@
+../Core/Src/Lcd/stm32_ts.c:16:6:BSP_TS_CalibCalc	17
+../Core/Src/Lcd/stm32_ts.c:97:6:BSP_TS_DisplaycoordCalc	5
+../Core/Src/Lcd/stm32_ts.c:121:6:BSP_TS_SetCindex	2
+../Core/Src/Lcd/stm32_ts.c:131:6:BSP_TS_GetCindex	2
+../Core/Src/Lcd/stm32_ts.c:145:9:BSP_TS_Init	3
+../Core/Src/Lcd/stm32_ts.c:170:6:BSP_TS_GetState	2
