@@ -23,6 +23,14 @@
 /* USER CODE BEGIN Includes */
 #include "vl53l7cx_api.h"
 #include <stdio.h>
+#include "grideye.h"
+//#include "network.h"
+//#include "network_data.h"
+//#include "network_data_params.h"
+//#include "ai_platform.h"
+
+#include "knowledge.h"
+#include "NanoEdgeAI.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,6 +58,19 @@ VL53L7CX_Configuration Dev;
 VL53L7CX_ResultsData Results;
 uint8_t isAlive, status, isReady, i;
 
+
+typedef enum {
+    GESTURE_NONE = 0,
+    GESTURE_ROCK,
+    GESTURE_PAPER,
+    GESTURE_SCISSORS
+} RPS_Gesture;
+
+float pixel_temps[64];
+float thermistor_temp;
+float column_vals[8];
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -62,7 +83,6 @@ static void MX_LPUART1_UART_Init(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
 /* USER CODE BEGIN 0 */
 #ifdef __GNUC__
 #define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
@@ -78,6 +98,43 @@ PUTCHAR_PROTOTYPE
 
 #define MAX_VALID_DIST_MM 10000U  /* sanity threshold for picking correct endian */
 
+void fill_buffer(float sample_buffer[]) {
+    uint8_t isReady = 0;
+
+    // Wait for sensor data to be ready
+    do {
+        status = vl53l7cx_check_data_ready(&Dev, &isReady);
+        HAL_Delay(10);  // Small delay to prevent busy-waiting
+    } while(!isReady);
+
+    // Get ranging data from sensor
+    status = vl53l7cx_get_ranging_data(&Dev, &Results);
+
+    if(status == 0) {
+        // Fill buffer with distance data (64 zones)
+        for(int i = 0; i < 64; i++) {
+        	if(Results.distance_mm[i] > 255) {
+        		sample_buffer[i] = 255.0;
+        	}
+        	else {
+        		sample_buffer[i] = (float)Results.distance_mm[i];
+        	}
+        }
+
+        // Send all 64 data points in CSV format
+        printf("DATA:");
+        for(int i = 0; i < 64; i++) {
+            printf("%.2f", sample_buffer[i]);
+            if(i < 63) {
+                printf(",");
+            }
+        }
+        printf("\r\n");
+    } else {
+        printf("Error reading sensor: %d\r\n", status);
+    }
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -89,10 +146,12 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 
+	  //ai_error err;
+	  //ai_network_params params;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
-
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
@@ -115,86 +174,108 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   /* USER CODE BEGIN 2 */
-
-  // Setup platform
   Dev.platform.address = 0x52;
+  //printf("Initializing Grid-Eye...\r\n");
+    GridEye_Init(&hi2c1);
+    HAL_Delay(100);
 
-
+    // Test thermistor
+    thermistor_temp = GridEye_ReadThermistor(&hi2c1);
+    //printf("Thermistor temp: %.2f C\r\n", thermistor_temp);
+    //printf("Grid-Eye ready!\r\n");
+    int max_val;
+    int max_index;
   // Reset sensor
   HAL_GPIO_WritePin(LPn_C_GPIO_Port, LPn_C_Pin, GPIO_PIN_RESET);
   HAL_Delay(10);
   HAL_GPIO_WritePin(LPn_C_GPIO_Port, LPn_C_Pin, GPIO_PIN_SET);
   HAL_Delay(100);
 
-  printf("Starting...\r\n");
+  //printf("Starting...\r\n");
 
   // Check if sensor is alive
 
   vl53l7cx_is_alive(&Dev, &isAlive);
-  printf("isAlive = %d\r\n", isAlive);
+  //printf("isAlive = %d\r\n", isAlive);
 
   if (isAlive) {
-	  printf("Initializing...\r\n");  //
-      vl53l7cx_init(&Dev);  // This takes a few seconds
-      // Set resolution to 8x8 (64 zones)
+      //printf("Initializing sensor...\r\n");
+      vl53l7cx_init(&Dev);
       vl53l7cx_set_resolution(&Dev, VL53L7CX_RESOLUTION_8X8);
-
-      // OPTIONAL — set framerate (Hz)
       vl53l7cx_set_ranging_frequency_hz(&Dev, 15);
-
       vl53l7cx_start_ranging(&Dev);
-      printf("Ready!\r\n");
-  }
-
-
-
-
+      }
+  float input_user_buffer[DATA_INPUT_USER * AXIS_NUMBER];
+  	float output_class_buffer[CLASS_NUMBER];
   /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+
+
 
   /* USER CODE BEGIN WHILE */
 
+  enum neai_state error_code = neai_classification_init(knowledge);
+  if (error_code != NEAI_OK) {
+	  printf("NanoEdgeAI init error: %d\r\n", error_code);
+  }
+  uint16_t id_class = 0;
+  const char* class_names[] = {
+         "Unknown",        // After testing, update this
+         "Scissors",       // Scissors?
+         "Rock",    // Rock?
+         "Paper",     // Paper?
+         "No Sign"      // Class 4 confirmed
+     };
   while(1)
   {
-      uint8_t isReady = 0;  // Declare fresh each loop!
-      uint8_t status = vl53l7cx_check_data_ready(&Dev, &isReady);
+	  fill_buffer(input_user_buffer);
+	  enum neai_state run_code;
+	  run_code = neai_classification(input_user_buffer, output_class_buffer, &id_class);
+	  if (run_code == NEAI_OK) {
+		  printf("Detected: %s (ID: %d)\r\n", class_names[id_class], id_class);
+	  }
 
-      // Debug output
-      if(status != 0) {
-          printf("ERROR: check_data_ready failed, status = %d\r\n", status);
-      }
-
-   //   printf("isReady = %d\r\n", isReady);  // Should toggle 0,0,0,1,0,0,0,1...
-
-      if(isReady)
-      {
-          printf("Getting data...\r\n");
-          status = vl53l7cx_get_ranging_data(&Dev, &Results);
-
-          if(status != 0) {
-             printf("ERROR: get_ranging_data failed, status = %d\r\n", status);
-
-
-                   // Try to recover I2C
-                   HAL_I2C_DeInit(&hi2c1);
-                   HAL_Delay(10);
-                   MX_I2C1_Init();
-                   HAL_Delay(100);
-                   continue;
-               }
-
-
-          printf("=== Frame %3u ===\r\n", Dev.streamcount);
-          for(int i = 0; i < 64; i++){
-              printf("Zone %2d: %4d mm\r\n", i, Results.distance_mm[i]);
-          }
-          printf("\r\n");
-      }
-
-      HAL_Delay(100);  // Try longer delay for debugging
+	  HAL_Delay(100);
+//	  GridEye_ReadPixels(&hi2c1, pixel_temps);
+//
+//
+//	 	  	       for (int i = 0; i < 8; i++) {
+//	 	  	     	  column_vals[i] = 0;
+//	 	  	       }
+//	 	  	       for (int i = 0; i < 8; i++) {
+//	 	  	     	  for (int j = 0; j < 8; j++) {
+//	 	  	     		  column_vals[i] += pixel_temps[i + (j*8)];
+//	 	  	     	  }
+//
+//	 	  	       }
+//
+//	 	  	       printf("=== Grid-Eye Frame ===\r\n");
+//	 	  	             for (int i = 0; i < 8; i++) {
+//	 	  	           	  for (int j = 0; j < 8; j++) {
+//	 	  	           		  printf("    %.2f", pixel_temps[(i*8)+j]);
+//	 	  	           	  }
+//	 	  	             printf("\r\n");
+//	 	  	             }
+//	 	  	             max_val = 0;
+//	 	  	             max_index = 0;
+//	 	  	             for (int i = 0; i < 8; i++) {
+//	 	  	             	printf("  %.2f", column_vals[i]);
+//	 	  	             	if (column_vals[i] > max_val) {
+//	 	  	             		max_val = column_vals[i];
+//	 	  	             		max_index = i;
+//	 	  	             	}
+//	 	  	             }
+//	 	  	             printf("Max Index: %d\r\n", max_index);
+//	 	  	       HAL_Delay(2000);
   }
+    /* USER CODE END WHILE */
 
-
+    /* USER CODE BEGIN 3 */
+  /* USER CODE END 3 */
 }
+
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -218,7 +299,13 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
+  RCC_OscInitStruct.PLL.PLLM = 1;
+  RCC_OscInitStruct.PLL.PLLN = 16;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -228,9 +315,9 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV8;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
@@ -281,6 +368,10 @@ static void MX_I2C1_Init(void)
   {
     Error_Handler();
   }
+
+  /** I2C Fast mode Plus enable
+  */
+  HAL_I2CEx_EnableFastModePlus(I2C_FASTMODEPLUS_I2C1);
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
@@ -303,7 +394,7 @@ static void MX_LPUART1_UART_Init(void)
 
   /* USER CODE END LPUART1_Init 1 */
   hlpuart1.Instance = LPUART1;
-  hlpuart1.Init.BaudRate = 115200;
+  hlpuart1.Init.BaudRate = 460800;
   hlpuart1.Init.WordLength = UART_WORDLENGTH_8B;
   hlpuart1.Init.StopBits = UART_STOPBITS_1;
   hlpuart1.Init.Parity = UART_PARITY_NONE;
