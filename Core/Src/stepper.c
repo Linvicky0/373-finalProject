@@ -1,7 +1,7 @@
 #include "stepper.h"
 #include "stdio.h"
 
-int GANTRY_ZONE = 6; // move gantry to leftmost position or update this variable to its respective zone
+int GANTRY_ZONE = 4; // move gantry to leftmost position or update this variable to its respective zone
 
 void microDelay (uint16_t delay, TIM_HandleTypeDef* tim) // Note: may need to change thumb timer channel to channel 2 or 3
 {

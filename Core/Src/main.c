@@ -24,6 +24,14 @@
 #include "grideye.h"
 #include "stepper.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include "bitmap.h"
+/* BSP LCD driver */
+#include "Lcd/stm32_ili9488_lcd.h"
+
+/* BSP TS driver */
+#include "Lcd/stm32_ili9488_ts.h"
+#include "game.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,7 +59,12 @@ I2C_HandleTypeDef hi2c1;
 
 UART_HandleTypeDef hlpuart1;
 
+SPI_HandleTypeDef hspi1;
+
 TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
 
@@ -65,6 +78,10 @@ static void MX_GPIO_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_LPUART1_UART_Init(void);
+static void MX_TIM2_Init(void);
+static void MX_TIM4_Init(void);
+static void MX_TIM3_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -84,7 +101,172 @@ PUTCHAR_PROTOTYPE
 }
 
 
+struct GameInfo prevMatch = {NOGAME, NOCHOICE, NOCHOICE};
+uint16_t xboxsize;
 
+GameResult getGameResult(Gesture userChoice, Gesture robotChoice) {
+    if (userChoice == robotChoice) {
+       return TIED;
+    }
+    else if ((userChoice == ROCK && robotChoice == SCISSORS) || (userChoice == PAPER && robotChoice == ROCK) || (userChoice == SCISSORS && robotChoice == PAPER)) {
+      return USER_WINS;
+    }
+    return ROBOT_WINS;
+}
+
+uint16_t* getBitMap(Gesture choice) {
+    uint16_t* bitmap;
+    switch (choice){
+    case ROCK:
+       bitmap = rockBitMap;
+       break;
+    case SCISSORS:
+        bitmap = scissorBitMap;
+        break;
+    default:
+        bitmap = paperBitMap;
+    }
+    return bitmap;
+}
+
+void displayText() {
+	// font24 has 6 lines (0-5)
+	  int resultTextLine = 5;
+
+	if (prevMatch.res == NOGAME) {
+		return;
+	}
+	BSP_LCD_ClearStringLine(resultTextLine);
+	if (prevMatch.res == TIED) {
+		BSP_LCD_DisplayStringAtLine(resultTextLine, (uint8_t*)"Stalemate");
+	}
+	else if (prevMatch.res == USER_WINS) {
+		BSP_LCD_DisplayStringAtLine(resultTextLine, (uint8_t*)"You win!");
+	}
+	else if (prevMatch.res == ROBOT_WINS){
+		BSP_LCD_DisplayStringAtLine(resultTextLine, (uint8_t*)"You lost");
+	}
+}
+// Change graphics and result text to reflect current match info.
+void displayLCD(struct GameInfo curMatch)
+{
+
+  uint16_t lcd_height = BSP_LCD_GetYSize();
+  if (prevMatch.res != curMatch.res) {
+	  prevMatch.res = curMatch.res;
+	  displayText();
+  }
+  uint16_t* userBitmap = getBitMap(curMatch.userChoice);
+  uint16_t* robotBitmap = getBitMap(curMatch.robotChoice);
+  if (prevMatch.userChoice != curMatch.userChoice) {
+	  prevMatch.userChoice = curMatch.userChoice;
+	  BSP_LCD_DrawRGB16Image(0, lcd_height/2, 100, 100, (uint16_t*)userBitmap);
+  }
+  if (prevMatch.robotChoice != curMatch.robotChoice) {
+	  prevMatch.robotChoice = curMatch.robotChoice;
+	  BSP_LCD_DrawRGB16Image(BSP_LCD_GetXSize()-100, BSP_LCD_GetYSize()/2, 100, 100, (uint16_t*)robotBitmap);
+  }
+}
+
+
+//uint16_t XPT2046_ReadValue(uint8_t cmd) // command used to read x, y, or z value
+//{
+//	    uint8_t tx[3] = {cmd, 0x00, 0x00};  // Command + 2 dummy bytes
+//	    uint8_t rx[3] = {0};
+//
+//	    // Set CS low to start communication
+//	    HAL_GPIO_WritePin(TS_CS_GPIO_Port, TS_CS_Pin, GPIO_PIN_RESET);
+//
+//	    HAL_SPI_TransmitReceive(&hspi1, tx, rx, 3, HAL_MAX_DELAY);
+//
+//	    // Set CS high to end communication
+//	    HAL_GPIO_WritePin(TS_CS_GPIO_Port, TS_CS_Pin, GPIO_PIN_SET);
+//
+//	    // Combine the two response bytes into a 12-bit value
+//	    uint16_t value = ((rx[1] << 8) | rx[2]) >> 3;  // 12-bit ADC
+//	    return value;
+//}
+
+
+//void HAL_GPIO_EXTI_Callback(uint16_t pin) {
+//	if (pin == TS_IRQ_Pin) {
+//		// disable interrupt be setting it high because reading would cause handler to trigger again
+//		 HAL_NVIC_DisableIRQ(EXTI0_IRQn); // NOTE: change this if we changed exti number for touch detection
+//		 while (HAL_GPIO_ReadPin(TS_IRQ_GPIO_Port, TS_IRQ_Pin) == GPIO_PIN_RESET);
+//
+//		// get x, y points
+//		 uint16_t x_raw, y_raw;
+//
+//		  x_raw = XPT2046_ReadValue(0xD1);  // X command (D1?)  1(___)00(00)
+//		  y_raw = XPT2046_ReadValue(0x91);  // Y command (91?)
+//		  uint16_t curTextcolor = BSP_LCD_GetTextColor();
+//		  if (curTextcolor == LCD_COLOR_MAGENTA) {
+//			  BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+//		  }
+//		  else {
+//			  BSP_LCD_SetTextColor(LCD_COLOR_MAGENTA);
+//		  }
+//         displayText();
+//         __HAL_GPIO_EXTI_CLEAR_IT(TS_IRQ_Pin);
+//         HAL_NVIC_ClearPendingIRQ(EXTI0_IRQn);
+//
+//		 HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+//
+//	}
+//}
+
+
+void move_hand(Gesture robotMove)
+{
+	//  CCR 50 = 0 degrees, CCR 150 = 90 degrees, CCR 250 = 180 degrees
+  if (prevMatch.robotChoice != robotMove) {
+	  if (robotMove == ROCK) { // thumb ccr to 250, other timers' CCR set to 50
+			  while (htim4.Instance->CCR2 > 50 || htim4.Instance->CCR4 > 50 || htim2.Instance->CCR3 < 250) {
+			  		if (htim4.Instance->CCR2 > 50) {
+			  		 __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, htim4.Instance->CCR2-1);
+			  		}
+			  		if (htim4.Instance->CCR4 > 50) {
+			  		 __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, htim4.Instance->CCR4-1);
+			  		}
+			  		if (htim2.Instance->CCR3 < 250) {
+				  	 __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, htim2.Instance->CCR3+1);
+			  		}
+			  		HAL_Delay(20);
+			  }
+		  }
+		  else if (robotMove == PAPER) { // thumb ccr to 50, other timers' CCR set to 250
+			  while (htim4.Instance->CCR2 < 250 || htim4.Instance->CCR4 < 250 || htim2.Instance->CCR3 > 50) {
+				  if (htim4.Instance->CCR2 < 250) {
+					  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, htim4.Instance->CCR2+1);
+				  }
+				  if (htim4.Instance->CCR4 < 250) {
+					  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, htim4.Instance->CCR4+1);
+				  }
+				  if (htim2.Instance->CCR3 > 50) {
+					 __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, htim2.Instance->CCR3-1);
+				  }
+				  HAL_Delay(20);
+			  }
+	  }
+	  else if (robotMove == SCISSORS) {
+		  // thumb ccr => 250
+		  // tim4ch2 represents index and middle fingers -> set CCR to 50
+		  // tim4ch4 CCR set to 250
+		  while (htim4.Instance->CCR2 < 250 || htim4.Instance->CCR4 > 50 || htim2.Instance->CCR3 < 250) {
+		  		if (htim4.Instance->CCR2 < 250) {
+		  			__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, htim4.Instance->CCR2+1);
+		  		}
+		  		if (htim4.Instance->CCR4 > 50) {
+		  			__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, htim4.Instance->CCR4-1);
+		  		}
+		  	    if (htim2.Instance->CCR3 < 250) {
+		  			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, htim2.Instance->CCR3+1);
+		  		}
+		  		HAL_Delay(20);
+		  	}
+	  }
+  }
+}
 /* USER CODE END 0 */
 
 /**
@@ -118,8 +300,37 @@ int main(void)
   MX_TIM1_Init();
   MX_I2C1_Init();
   MX_LPUART1_UART_Init();
+  MX_TIM2_Init();
+  MX_TIM4_Init();
+  MX_TIM3_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim1);
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);  // index and middle fingers: CCR=250 is stretched, CCR=50 is curled
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3); // thumb finger: CCR=50 is stretched, CCR=250 is curled
+
+ uint16_t lcd_width = BSP_LCD_GetXSize();
+ uint16_t lcd_height = BSP_LCD_GetYSize();
+ BSP_LCD_Init();
+ BSP_LCD_Clear(LCD_COLOR_BLACK);
+
+ xboxsize = lcd_width / 6; // box size is 320/6 => 53
+
+
+ BSP_LCD_SetTextColor(LCD_COLOR_WHITE); // set initial text color to white
+
+ BSP_LCD_SetTextColor(LCD_COLOR_WHITE); // set initial text color to white
+ BSP_LCD_DisplayChar(15, lcd_height/2 - 20, 'Y');
+ BSP_LCD_DisplayChar(30, lcd_height/2 - 20, 'O');
+ BSP_LCD_DisplayChar(45, lcd_height/2 - 20, 'U');
+
+ BSP_LCD_DisplayChar(lcd_width-90, lcd_height/2 - 20, 'R');
+ BSP_LCD_DisplayChar(lcd_width-75, lcd_height/2 - 20, 'O');
+ BSP_LCD_DisplayChar(lcd_width-60, lcd_height/2 - 20, 'B');
+ BSP_LCD_DisplayChar(lcd_width-45, lcd_height/2 - 20, 'O');
+ BSP_LCD_DisplayChar(lcd_width-30, lcd_height/2 - 20, 'T');
+
 
   printf("Initializing Grid-Eye...\r\n");
   GridEye_Init(&hi2c1);
@@ -143,9 +354,21 @@ int main(void)
     		move_to_zone(max_temp_col, &htim1);
     		// read ToF 8x8 grid
     		// if distance is close enough, run model to classify
+    		// get random hand gesture test
+    		srand(HAL_GetTick());
+    	    int userPick = rand() % 3;
+    	    int robotPick = rand() % 3;
+    		printf("Generating hand gesture: %d", robotPick);
+    	    Gesture userGesture = (Gesture)userPick;
+    	    Gesture robotGesture = (Gesture)robotPick;
+    	    GameResult res = getGameResult(userGesture, robotGesture);
+    	    struct GameInfo matchInfo = {res, userGesture, robotGesture};
+    	    move_hand(robotGesture);
+    	    displayLCD(matchInfo);
+    	    HAL_Delay(2000);
     	}
 
-    	HAL_Delay(5000); // TODO: remove later
+    	HAL_Delay(2000); // TODO: remove later
     }
     /* USER CODE END WHILE */
 
@@ -301,6 +524,46 @@ static void MX_LPUART1_UART_Init(void)
 }
 
 /**
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI1_Init(void)
+{
+
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 7;
+  hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
   * @brief TIM1 Initialization Function
   * @param None
   * @retval None
@@ -348,6 +611,172 @@ static void MX_TIM1_Init(void)
 }
 
 /**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 1449;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 999;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_OC_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+  HAL_TIM_MspPostInit(&htim2);
+
+}
+
+/**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 0;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 65535;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+
+}
+
+/**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 1449;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 999;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 150;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
+  HAL_TIM_MspPostInit(&htim4);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -372,6 +801,18 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, stepper_dir_Pin|stepper_step_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(TS_CS_GPIO_Port, TS_CS_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LCD_RST_GPIO_Port, LCD_RST_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LCD_RS_GPIO_Port, LCD_RS_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LCD_CS_GPIO_Port, LCD_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pins : PE2 PE3 */
   GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
@@ -405,16 +846,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PA0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : stepper_dir_Pin stepper_step_Pin */
-  GPIO_InitStruct.Pin = stepper_dir_Pin|stepper_step_Pin;
+  /*Configure GPIO pins : stepper_dir_Pin stepper_step_Pin TS_CS_Pin */
+  GPIO_InitStruct.Pin = stepper_dir_Pin|stepper_step_Pin|TS_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -426,21 +859,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA4 PA5 PA6 PA7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  /*Configure GPIO pin : TS_IRQ_Pin */
+  GPIO_InitStruct.Pin = TS_IRQ_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF2_TIM3;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  HAL_GPIO_Init(TS_IRQ_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PB1 */
   GPIO_InitStruct.Pin = GPIO_PIN_1;
@@ -454,13 +877,19 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PB10 */
-  GPIO_InitStruct.Pin = GPIO_PIN_10;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  /*Configure GPIO pin : LCD_RST_Pin */
+  GPIO_InitStruct.Pin = LCD_RST_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  HAL_GPIO_Init(LCD_RST_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : LCD_RS_Pin */
+  GPIO_InitStruct.Pin = LCD_RS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(LCD_RS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB12 PB13 PB15 */
   GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_15;
@@ -486,29 +915,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PD14 PD15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_14|GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  /*Configure GPIO pin : LCD_CS_Pin */
+  GPIO_InitStruct.Pin = LCD_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF2_TIM4;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PC6 */
-  GPIO_InitStruct.Pin = GPIO_PIN_6;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF13_SAI2;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PC7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_7;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF2_TIM3;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(LCD_CS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PC8 PC9 PC10 PC11
                            PC12 */
@@ -571,14 +983,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF6_SPI3;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PE0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF2_TIM4;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);

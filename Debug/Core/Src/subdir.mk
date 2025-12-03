@@ -7,7 +7,10 @@
 C_SRCS += \
 ../Core/Src/grideye.c \
 ../Core/Src/main.c \
+../Core/Src/paper.c \
 ../Core/Src/platform.c \
+../Core/Src/rock.c \
+../Core/Src/scissor.c \
 ../Core/Src/stepper.c \
 ../Core/Src/stm32l4xx_hal_msp.c \
 ../Core/Src/stm32l4xx_it.c \
@@ -18,7 +21,10 @@ C_SRCS += \
 OBJS += \
 ./Core/Src/grideye.o \
 ./Core/Src/main.o \
+./Core/Src/paper.o \
 ./Core/Src/platform.o \
+./Core/Src/rock.o \
+./Core/Src/scissor.o \
 ./Core/Src/stepper.o \
 ./Core/Src/stm32l4xx_hal_msp.o \
 ./Core/Src/stm32l4xx_it.o \
@@ -29,7 +35,10 @@ OBJS += \
 C_DEPS += \
 ./Core/Src/grideye.d \
 ./Core/Src/main.d \
+./Core/Src/paper.d \
 ./Core/Src/platform.d \
+./Core/Src/rock.d \
+./Core/Src/scissor.d \
 ./Core/Src/stepper.d \
 ./Core/Src/stm32l4xx_hal_msp.d \
 ./Core/Src/stm32l4xx_it.d \
@@ -45,7 +54,7 @@ Core/Src/%.o Core/Src/%.su Core/Src/%.cyclo: ../Core/Src/%.c Core/Src/subdir.mk
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/grideye.cyclo ./Core/Src/grideye.d ./Core/Src/grideye.o ./Core/Src/grideye.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/platform.cyclo ./Core/Src/platform.d ./Core/Src/platform.o ./Core/Src/platform.su ./Core/Src/stepper.cyclo ./Core/Src/stepper.d ./Core/Src/stepper.o ./Core/Src/stepper.su ./Core/Src/stm32l4xx_hal_msp.cyclo ./Core/Src/stm32l4xx_hal_msp.d ./Core/Src/stm32l4xx_hal_msp.o ./Core/Src/stm32l4xx_hal_msp.su ./Core/Src/stm32l4xx_it.cyclo ./Core/Src/stm32l4xx_it.d ./Core/Src/stm32l4xx_it.o ./Core/Src/stm32l4xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32l4xx.cyclo ./Core/Src/system_stm32l4xx.d ./Core/Src/system_stm32l4xx.o ./Core/Src/system_stm32l4xx.su
+	-$(RM) ./Core/Src/grideye.cyclo ./Core/Src/grideye.d ./Core/Src/grideye.o ./Core/Src/grideye.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/paper.cyclo ./Core/Src/paper.d ./Core/Src/paper.o ./Core/Src/paper.su ./Core/Src/platform.cyclo ./Core/Src/platform.d ./Core/Src/platform.o ./Core/Src/platform.su ./Core/Src/rock.cyclo ./Core/Src/rock.d ./Core/Src/rock.o ./Core/Src/rock.su ./Core/Src/scissor.cyclo ./Core/Src/scissor.d ./Core/Src/scissor.o ./Core/Src/scissor.su ./Core/Src/stepper.cyclo ./Core/Src/stepper.d ./Core/Src/stepper.o ./Core/Src/stepper.su ./Core/Src/stm32l4xx_hal_msp.cyclo ./Core/Src/stm32l4xx_hal_msp.d ./Core/Src/stm32l4xx_hal_msp.o ./Core/Src/stm32l4xx_hal_msp.su ./Core/Src/stm32l4xx_it.cyclo ./Core/Src/stm32l4xx_it.d ./Core/Src/stm32l4xx_it.o ./Core/Src/stm32l4xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32l4xx.cyclo ./Core/Src/system_stm32l4xx.d ./Core/Src/system_stm32l4xx.o ./Core/Src/system_stm32l4xx.su
 
 .PHONY: clean-Core-2f-Src
 

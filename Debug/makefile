@@ -12,6 +12,8 @@ RM := rm -rf
 -include Drivers/VL53L7CX_ULD_API/src/subdir.mk
 -include Drivers/STM32L4xx_HAL_Driver/Src/subdir.mk
 -include Core/Startup/subdir.mk
+-include Core/Src/Lcd/Fonts/subdir.mk
+-include Core/Src/Lcd/subdir.mk
 -include Core/Src/subdir.mk
 -include objects.mk
 
