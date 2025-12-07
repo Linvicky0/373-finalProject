@@ -59,12 +59,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define TS_CS_Pin GPIO_PIN_4
+#define TS_CS_GPIO_Port GPIOE
 #define stepper_dir_Pin GPIO_PIN_1
 #define stepper_dir_GPIO_Port GPIOA
 #define stepper_step_Pin GPIO_PIN_2
 #define stepper_step_GPIO_Port GPIOA
-#define TS_CS_Pin GPIO_PIN_4
-#define TS_CS_GPIO_Port GPIOA
 #define LCDTS_SCK_Pin GPIO_PIN_5
 #define LCDTS_SCK_GPIO_Port GPIOA
 #define LCDTS_MISO_Pin GPIO_PIN_6

@@ -380,7 +380,6 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
 
     /* USER CODE END TIM4_MspInit 1 */
   }
-
 }
 
 /**
@@ -551,7 +550,6 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* htim_base)
 
     /* USER CODE END TIM4_MspDeInit 1 */
   }
-
 }
 
 /**
