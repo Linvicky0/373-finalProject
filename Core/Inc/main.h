@@ -80,10 +80,6 @@ void Error_Handler(void);
 #define LCD_RS_GPIO_Port GPIOE
 #define LD3_Pin GPIO_PIN_14
 #define LD3_GPIO_Port GPIOB
-#define STLK_RX_Pin GPIO_PIN_8
-#define STLK_RX_GPIO_Port GPIOD
-#define STLK_TX_Pin GPIO_PIN_9
-#define STLK_TX_GPIO_Port GPIOD
 #define LCD_CS_Pin GPIO_PIN_14
 #define LCD_CS_GPIO_Port GPIOD
 #define ring_pinky_signa_Pin GPIO_PIN_15

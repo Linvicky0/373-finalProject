@@ -1,5 +1,5 @@
-Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.o: \
- ../Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.c ../Core/Inc/main.h \
+Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_uart.o: \
+ ../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_uart.c \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal.h \
  ../Core/Inc/stm32l4xx_hal_conf.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_rcc.h \
@@ -30,11 +30,7 @@ Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.o: \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_tim.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_tim_ex.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart.h \
- ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart_ex.h \
- ../Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.h ../Core/Src/Lcd/lcd.h \
- ../Core/Src/Lcd/lcd_io.h ../Core/Src/Lcd/ts.h \
- ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_ll_gpio.h
-../Core/Inc/main.h:
+ ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart_ex.h
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal.h:
 ../Core/Inc/stm32l4xx_hal_conf.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_rcc.h:
@@ -66,8 +62,3 @@ Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.o: \
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_tim_ex.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart_ex.h:
-../Core/Src/Lcd/lcdts_io_xpt2046_spi_hal.h:
-../Core/Src/Lcd/lcd.h:
-../Core/Src/Lcd/lcd_io.h:
-../Core/Src/Lcd/ts.h:
-../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_ll_gpio.h:

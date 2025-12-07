@@ -23,12 +23,6 @@
 /* USER CODE BEGIN Includes */
 #include <stdlib.h>
 #include <stdio.h>
-#include "bitmap.h"
-/* BSP LCD driver */
-#include "Lcd/stm32_ili9488_lcd.h"
-
-/* BSP TS driver */
-#include "Lcd/stm32_ili9488_ts.h"
 #include "game.h"
 /* USER CODE END Includes */
 
@@ -55,8 +49,9 @@ DMA_HandleTypeDef hdma_spi1_tx;
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim4;
 
+UART_HandleTypeDef huart3;
+
 /* USER CODE BEGIN PV */
-extern LCD_DrvTypeDef *lcd_drv;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -66,133 +61,20 @@ static void MX_DMA_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
-void mainApp(void);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-struct GameInfo prevMatch = {NOGAME, NOCHOICE, NOCHOICE};
-uint16_t xboxsize;
-
-GameResult getGameResult(Gesture userChoice, Gesture robotChoice) {
-    if (userChoice == robotChoice) {
-       return TIED;
-    }
-    else if ((userChoice == ROCK && robotChoice == SCISSORS) || (userChoice == PAPER && robotChoice == ROCK) || (userChoice == SCISSORS && robotChoice == PAPER)) {
-      return USER_WINS;
-    }
-    return ROBOT_WINS;
-}
-
-uint16_t* getBitMap(Gesture choice) {
-    uint16_t* bitmap;
-    switch (choice){
-    case ROCK:
-       bitmap = rockBitMap;
-       break;
-    case SCISSORS:
-        bitmap = scissorBitMap;
-        break;
-    default:
-        bitmap = paperBitMap;
-    }
-    return bitmap;
-}
-
-void displayText() {
-	// font24 has 6 lines (0-5)
-	  int resultTextLine = 5;
-
-	if (prevMatch.res == NOGAME) {
-		return;
-	}
-	BSP_LCD_ClearStringLine(resultTextLine);
-	if (prevMatch.res == TIED) {
-		BSP_LCD_DisplayStringAtLine(resultTextLine, (uint8_t*)"Stalemate");
-	}
-	else if (prevMatch.res == USER_WINS) {
-		BSP_LCD_DisplayStringAtLine(resultTextLine, (uint8_t*)"You win!");
-	}
-	else if (prevMatch.res == ROBOT_WINS){
-		BSP_LCD_DisplayStringAtLine(resultTextLine, (uint8_t*)"You lost");
-	}
-}
-// Change graphics and result text to reflect current match info.
-void displayLCD(struct GameInfo curMatch)
-{
-
-  uint16_t lcd_height = BSP_LCD_GetYSize();
-  if (prevMatch.res != curMatch.res) {
-	  prevMatch.res = curMatch.res;
-	  displayText();
-  }
-  uint16_t* userBitmap = getBitMap(curMatch.userChoice);
-  uint16_t* robotBitmap = getBitMap(curMatch.robotChoice);
-  if (prevMatch.userChoice != curMatch.userChoice) {
-	  prevMatch.userChoice = curMatch.userChoice;
-	  BSP_LCD_DrawRGB16Image(0, lcd_height/2, 100, 100, (uint16_t*)userBitmap);
-  }
-  if (prevMatch.robotChoice != curMatch.robotChoice) {
-	  prevMatch.robotChoice = curMatch.robotChoice;
-	  BSP_LCD_DrawRGB16Image(BSP_LCD_GetXSize()-100, BSP_LCD_GetYSize()/2, 100, 100, (uint16_t*)robotBitmap);
-  }
-}
-
-
-uint16_t XPT2046_ReadValue(uint8_t cmd) // command used to read x, y, or z value
-{
-	    uint8_t tx[3] = {cmd, 0x00, 0x00};  // Command + 2 dummy bytes
-	    uint8_t rx[3] = {0};
-
-	    // Set CS low to start communication
-	    HAL_GPIO_WritePin(TS_CS_GPIO_Port, TS_CS_Pin, GPIO_PIN_RESET);
-
-	    HAL_SPI_TransmitReceive(&hspi1, tx, rx, 3, HAL_MAX_DELAY);
-
-	    // Set CS high to end communication
-	    HAL_GPIO_WritePin(TS_CS_GPIO_Port, TS_CS_Pin, GPIO_PIN_SET);
-
-	    // Combine the two response bytes into a 12-bit value
-	    uint16_t value = ((rx[1] << 8) | rx[2]) >> 3;  // 12-bit ADC
-	    return value;
-}
-
-
-void HAL_GPIO_EXTI_Callback(uint16_t pin) {
-	if (pin == TS_IRQ_Pin) {
-		// disable interrupt be setting it high because reading would cause handler to trigger again
-		 HAL_NVIC_DisableIRQ(EXTI0_IRQn); // NOTE: change this if we changed exti number for touch detection
-		 while (HAL_GPIO_ReadPin(TS_IRQ_GPIO_Port, TS_IRQ_Pin) == GPIO_PIN_RESET);
-
-		// get x, y points
-		 uint16_t x_raw, y_raw;
-
-		  x_raw = XPT2046_ReadValue(0xD1);  // X command (D1?)  1(___)00(00)
-		  y_raw = XPT2046_ReadValue(0x91);  // Y command (91?)
-		  uint16_t curTextcolor = BSP_LCD_GetTextColor();
-		  if (curTextcolor == LCD_COLOR_MAGENTA) {
-			  BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
-		  }
-		  else {
-			  BSP_LCD_SetTextColor(LCD_COLOR_MAGENTA);
-		  }
-         displayText();
-         __HAL_GPIO_EXTI_CLEAR_IT(TS_IRQ_Pin);
-         HAL_NVIC_ClearPendingIRQ(EXTI0_IRQn);
-
-		 HAL_NVIC_EnableIRQ(EXTI0_IRQn);
-
-	}
-}
-
+uint8_t input_gesture;
 
 void move_hand(Gesture robotMove)
 {
 	//  CCR 50 = 0 degrees, CCR 150 = 90 degrees, CCR 250 = 180 degrees
-  if (prevMatch.robotChoice != robotMove) {
+
 	  if (robotMove == ROCK) { // thumb ccr to 250, other timers' CCR set to 50
 			  while (htim4.Instance->CCR2 > 50 || htim4.Instance->CCR4 > 50 || htim1.Instance->CCR4 < 250) {
 			  		if (htim4.Instance->CCR2 > 50) {
@@ -204,7 +86,7 @@ void move_hand(Gesture robotMove)
 			  		if (htim1.Instance->CCR4 < 250) {
 				  	 __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, htim1.Instance->CCR4+1);
 			  		}
-			  		HAL_Delay(20);
+			  		HAL_Delay(4);
 			  }
 		  }
 		  else if (robotMove == PAPER) { // thumb ccr to 50, other timers' CCR set to 250
@@ -218,7 +100,7 @@ void move_hand(Gesture robotMove)
 				  if (htim1.Instance->CCR4 > 50) {
 					 __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, htim1.Instance->CCR4-1);
 				  }
-				  HAL_Delay(20);
+				  HAL_Delay(4);
 			  }
 	  }
 	  else if (robotMove == SCISSORS) {
@@ -235,11 +117,25 @@ void move_hand(Gesture robotMove)
 		  	    if (htim1.Instance->CCR4 < 250) {
 		  			__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, htim1.Instance->CCR4+1);
 		  		}
-		  		HAL_Delay(20);
+		  		HAL_Delay(4);
 		  	}
 	  }
-  }
 }
+
+//void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+//{
+//    if(huart->Instance == huart3.Instance)
+//    {
+//    	printf("Input gesture received over Bluetooth: %d\r\n", input_gesture);
+//    	Gesture robotGesture = (Gesture)input_gesture;
+//    	srand(HAL_GetTick());
+//    	int pick = rand() % 3;
+//    	printf("Moving hand: %d\r\n", pick);
+//    	move_hand(pick);
+////    	move_hand(robotGesture);
+//    	HAL_UART_Receive_IT(&huart3, &input_gesture, 1);
+//    }
+//}
 
 /* USER CODE END 0 */
 
@@ -276,6 +172,7 @@ int main(void)
   MX_SPI1_Init();
   MX_TIM1_Init();
   MX_TIM4_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
   // Start timers for hand: start off with paper
@@ -283,26 +180,6 @@ int main(void)
    HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4); // thumb finger: CCR=50 is stretched, CCR=250 is curled
 
-  uint16_t lcd_width = BSP_LCD_GetXSize();
-  uint16_t lcd_height = BSP_LCD_GetYSize();
-  BSP_LCD_Init();
-  //BSP_TS_Init(lcd_width, lcd_height);
-
-  xboxsize = lcd_width / 6; // box size is 320/6 => 53
-
-
-  BSP_LCD_SetTextColor(LCD_COLOR_WHITE); // set initial text color to white
-
-  BSP_LCD_SetTextColor(LCD_COLOR_WHITE); // set initial text color to white
-  BSP_LCD_DisplayChar(15, lcd_height/2 - 20, 'Y');
-  BSP_LCD_DisplayChar(30, lcd_height/2 - 20, 'O');
-  BSP_LCD_DisplayChar(45, lcd_height/2 - 20, 'U');
-
-  BSP_LCD_DisplayChar(lcd_width-90, lcd_height/2 - 20, 'R');
-  BSP_LCD_DisplayChar(lcd_width-75, lcd_height/2 - 20, 'O');
-  BSP_LCD_DisplayChar(lcd_width-60, lcd_height/2 - 20, 'B');
-  BSP_LCD_DisplayChar(lcd_width-45, lcd_height/2 - 20, 'O');
-  BSP_LCD_DisplayChar(lcd_width-30, lcd_height/2 - 20, 'T');
 
   // set hand pos to half curled
 //  while (htim4.Instance->CCR2 < 150 || htim4.Instance->CCR4 < 150 || htim1.Instance->CCR4 < 150) {
@@ -318,25 +195,34 @@ int main(void)
 //			  HAL_Delay(20);
 //  }
 
-  HAL_Delay(5000);
+//  HAL_Delay(5000);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+//   HAL_UART_Receive_IT(&huart3, &input_gesture, 1);
   while (1)
   {
+	  char cmd;
+	     if (HAL_UART_Receive(&huart3, (uint8_t*)&cmd, 1, 1000) == HAL_OK) {
+	         printf("Received: %c\r\n", cmd);
 
-	 srand(HAL_GetTick());
+	         if (cmd == 'R') move_hand(ROCK);
+	         else if (cmd == 'P') move_hand(PAPER);
+	         else if (cmd == 'S') move_hand(SCISSORS);
 
-    int userPick = rand() % 3;
-    int robotPick = rand() % 3;
-    Gesture userGesture = (Gesture)userPick;
-    Gesture robotGesture = (Gesture)robotPick;
-    GameResult res = getGameResult(userGesture, robotGesture);
-    struct GameInfo matchInfo = {res, userGesture, robotGesture};
-    move_hand(robotGesture);
-    displayLCD(matchInfo);
-    HAL_Delay(2000); // wait 2 seconds before starting another match
+
+//	 srand(HAL_GetTick());
+//
+//    int userPick = rand() % 3;
+//    int robotPick = rand() % 3;
+//    Gesture userGesture = (Gesture)userPick;
+//    Gesture robotGesture = (Gesture)robotPick;
+//    GameResult res = getGameResult(userGesture, robotGesture);
+//    struct GameInfo matchInfo = {res, userGesture, robotGesture};
+//    move_hand(robotGesture);
+//    displayLCD(matchInfo);
+ //   HAL_Delay(2000); // wait 2 seconds before starting another match
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -552,6 +438,54 @@ static void MX_TIM4_Init(void)
 }
 
 /**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 9600;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart3.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart3.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart3, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart3, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
+
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -651,14 +585,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD3_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : STLK_RX_Pin STLK_TX_Pin */
-  GPIO_InitStruct.Pin = STLK_RX_Pin|STLK_TX_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LCD_CS_Pin */
   GPIO_InitStruct.Pin = LCD_CS_Pin;
