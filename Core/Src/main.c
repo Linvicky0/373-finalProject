@@ -96,18 +96,7 @@ uint32_t update_ccr(uint32_t originalVal, uint32_t target) {
 	return originalVal;
 }
 
-void run_test() {
-		move_hand(NOCHOICE);
-		  HAL_Delay(2000);
-		  move_hand(PAPER);
-		  HAL_Delay(2000);
-		  move_hand(NOCHOICE);
-		  HAL_Delay(2000);
-		  move_hand(SCISSORS);
-		  HAL_Delay(2000);
-		  move_hand(ROCK);
-		  HAL_Delay(2000);
-}
+
 
 void move_hand(Gesture robotMove)
 {
@@ -160,6 +149,26 @@ void move_hand(Gesture robotMove)
 
 }
 
+void run_all_test() {
+	move_hand(PAPER);
+	HAL_Delay(2000);
+	move_hand(ROCK);
+	HAL_Delay(2000);
+}
+
+void run_test() {
+		move_hand(NOCHOICE);
+		  HAL_Delay(2000);
+		  move_hand(PAPER);
+		  HAL_Delay(2000);
+		  move_hand(NOCHOICE);
+		  HAL_Delay(2000);
+		  move_hand(SCISSORS);
+		  HAL_Delay(2000);
+		  move_hand(ROCK);
+		  HAL_Delay(2000);
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -210,19 +219,19 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  // run_test();
-	  char cmd;
-		     if (HAL_UART_Receive(&huart3, (uint8_t*)&cmd, 1, 1000) == HAL_OK) {
-		         printf("Received: %c\r\n", cmd);
-
-		         if (cmd == 'R') move_hand(ROCK);
-		         else if (cmd == 'P') move_hand(PAPER);
-		         else if (cmd == 'S') move_hand(SCISSORS);
-		         else {
-		        	 move_hand(NOCHOICE);
-		         }
-
-		     }
+	  run_all_test();
+//	  char cmd;
+//		     if (HAL_UART_Receive(&huart3, (uint8_t*)&cmd, 1, 1000) == HAL_OK) {
+//		         printf("Received: %c\r\n", cmd);
+//
+//		         if (cmd == 'R') move_hand(ROCK);
+//		         else if (cmd == 'P') move_hand(PAPER);
+//		         else if (cmd == 'S') move_hand(SCISSORS);
+//		         else {
+//		        	 move_hand(NOCHOICE);
+//		         }
+//
+//		     }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
