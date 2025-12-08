@@ -219,19 +219,19 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  run_all_test();
-//	  char cmd;
-//		     if (HAL_UART_Receive(&huart3, (uint8_t*)&cmd, 1, 1000) == HAL_OK) {
-//		         printf("Received: %c\r\n", cmd);
-//
-//		         if (cmd == 'R') move_hand(ROCK);
-//		         else if (cmd == 'P') move_hand(PAPER);
-//		         else if (cmd == 'S') move_hand(SCISSORS);
-//		         else {
-//		        	 move_hand(NOCHOICE);
-//		         }
-//
-//		     }
+	  // run_all_test();
+	  char cmd;
+		     if (HAL_UART_Receive(&huart3, (uint8_t*)&cmd, 1, 1000) == HAL_OK) {
+		         printf("Received: %c\r\n", cmd);
+
+		         if (cmd == 'R') move_hand(ROCK);
+		         else if (cmd == 'P') move_hand(PAPER);
+		         else if (cmd == 'S') move_hand(SCISSORS);
+		         else {
+		        	 move_hand(NOCHOICE);
+		         }
+
+		     }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -720,3 +720,4 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
+
