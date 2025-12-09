@@ -1,0 +1,4 @@
+../Core/Src/grideye.c:5:6:GridEye_Init	40	static
+../Core/Src/grideye.c:21:6:GridEye_ReadPixels	176	static
+../Core/Src/grideye.c:44:7:GridEye_ReadThermistor	40	static
+../Core/Src/grideye.c:60:5:find_hottest_col	336	static
